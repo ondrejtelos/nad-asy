@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="sk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nadčasová práca učiteľov</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <section id="loginView" class="login-view">
+      <form id="loginForm" class="login-box">
+        <p class="eyebrow">Školská evidencia</p>
+        <h1>Nadčasová práca učiteľov</h1>
+        <p>Prihláste sa svojím školským účtom.</p>
+        <label>
+          E-mail alebo prihlasovacie meno
+          <input id="loginEmail" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          Heslo
+          <input id="loginPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="primary" type="submit">Prihlásiť sa</button>
+        <button id="requestPasswordReset" type="button">Požiadať o reset hesla</button>
+        <p id="localHint" class="local-hint" hidden>
+          Administrátor: adminzskysak<br />
+          Skúšobný učiteľ: ucitel@skola.local / ucitel123
+        </p>
+      </form>
+    </section>
+
+    <div id="appView" hidden>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="schoolEyebrow">Evidencia</p>
+          <h1>Nadčasová práca učiteľov</h1>
+        </div>
+        <div class="user-area">
+          <div>
+            <strong id="currentUserName"></strong>
+            <span id="currentUserRole"></span>
+          </div>
+          <button id="logoutButton" type="button">Odhlásiť</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel" id="entryPanel">
+          <div class="panel-head">
+            <div>
+              <h2>Nový záznam</h2>
+              <p id="lockInfo">Načítavam pravidlá...</p>
+              <p id="editContext" class="edit-context" hidden></p>
+            </div>
+            <span id="monthBadge" class="badge">-</span>
+          </div>
+
+          <form id="entryForm" class="form-grid">
+            <input type="hidden" id="entryId" />
+            <label>
+              Zamestnanec
+              <input id="teacher" readonly />
+            </label>
+            <label>
+              Dátum
+              <input id="date" type="date" required />
+              <span class="field-help">Od 5. dňa môžete zadať aj skorší alebo budúci dátum v aktívnom mesiaci.</span>
+            </label>
+            <label>
+              Počet hodín
+              <input id="hours" type="number" min="0.25" max="24" step="0.25" required />
+            </label>
+            <label>
+              Dôvod
+              <select id="reason" required>
+                <option value="" selected disabled>Vyberte dôvod</option>
+                <option value="Krúžok">Krúžok</option>
+                <option value="Zastupovanie">Zastupovanie</option>
+                <option value="Školská akcia">Školská akcia</option>
+                <option value="Iný">Iný</option>
+              </select>
+            </label>
+            <label class="wide">
+              Poznámka
+              <textarea id="note" rows="3" placeholder="Voliteľné doplnenie"></textarea>
+            </label>
+            <div class="actions wide">
+              <button id="saveEntry" class="primary" type="submit">Uložiť záznam</button>
+              <button id="cancelEdit" type="button" hidden>Zrušiť úpravu</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="panel admin-panel" id="adminPanel" hidden>
+          <div class="panel-head">
+            <div>
+              <h2>Administrácia</h2>
+              <p>Nastavenia mesiaca a účty učiteľov.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label>
+              Názov školy
+              <input id="schoolName" />
+            </label>
+            <label>
+              Aktívny mesiac
+              <input id="activeMonth" type="month" />
+            </label>
+            <label>
+              Zadávanie od dňa
+              <input id="editFromDay" type="number" min="1" max="31" />
+            </label>
+            <label>
+              Zadávanie do dňa
+              <input id="editUntilDay" type="number" min="1" max="31" />
+            </label>
+            <div class="actions wide">
+              <button id="saveSettings" class="primary" type="button">Uložiť nastavenia</button>
+              <button id="newMonth" type="button">Spustiť nový mesiac</button>
+            </div>
+          </div>
+
+          <hr />
+          <h3>Nový účet</h3>
+          <form id="userForm" class="form-grid">
+            <label>
+              Meno
+              <input id="newUserName" required />
+            </label>
+            <label>
+              E-mail
+              <input id="newUserEmail" type="email" required />
+            </label>
+            <label>
+              Dočasné heslo
+              <input id="newUserPassword" type="password" minlength="8" required />
+            </label>
+            <label>
+              Typ účtu
+              <select id="newUserRole">
+                <option value="teacher">Učiteľ</option>
+                <option value="thp">THP zamestnanec</option>
+                <option value="admin">Administrátor</option>
+              </select>
+            </label>
+            <div class="actions wide">
+              <button class="primary" type="submit">Vytvoriť účet</button>
+            </div>
+          </form>
+          <div id="usersList" class="users-list"></div>
+        </aside>
+
+        <section class="panel records-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="recordsTitle">Moje záznamy</h2>
+              <p id="summary">Žiadne dáta.</p>
+            </div>
+            <div class="tools">
+              <label id="teacherFilterLabel" class="compact-field" hidden>
+                Zamestnanec
+                <select id="teacherFilter">
+                  <option value="">Vyberte zamestnanca</option>
+                </select>
+              </label>
+              <input id="search" type="search" placeholder="Hľadať v záznamoch" />
+              <button id="exportCsv" type="button">CSV</button>
+            </div>
+          </div>
+
+          <div id="overtimeBalance" class="balance-section" hidden>
+            <div class="balance-metrics">
+              <div class="metric">
+                <span>Nadčasy spolu</span>
+                <strong id="totalOvertime">0,00 h</strong>
+              </div>
+              <div class="metric">
+                <span>Vyčerpané</span>
+                <strong id="usedOvertime">0,00 h</strong>
+              </div>
+              <div class="metric balance">
+                <span>Zostáva</span>
+                <strong id="remainingOvertime">0,00 h</strong>
+              </div>
+            </div>
+            <form id="usageForm" class="usage-form">
+              <label>
+                Čerpanie v tomto mesiaci
+                <input id="usageHours" type="number" min="0" max="999" step="0.25" required />
+              </label>
+              <label>
+                Poznámka k čerpaniu
+                <input id="usageNote" placeholder="Napr. náhradné voľno" />
+              </label>
+              <button class="primary" type="submit">Uložiť čerpanie</button>
+            </form>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dátum</th>
+                  <th>Zamestnanec</th>
+                  <th>Dôvod</th>
+                  <th>Hodiny</th>
+                  <th>Poznámka</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="entriesBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="csvDialog" class="csv-dialog">
+      <div class="dialog-head">
+        <div>
+          <h2>Export CSV</h2>
+          <p>Údaje môžete stiahnuť ako súbor alebo skopírovať do schránky.</p>
+        </div>
+        <button id="closeCsvDialog" type="button" aria-label="Zavrieť">×</button>
+      </div>
+      <textarea id="csvPreview" rows="12" readonly></textarea>
+      <div class="actions">
+        <button id="copyCsv" class="primary" type="button">Skopírovať CSV</button>
+        <button id="downloadCsv" type="button">Stiahnuť súbor</button>
+      </div>
+    </dialog>
+
+    <dialog id="passwordDialog" class="csv-dialog password-dialog">
+      <div class="dialog-head">
+        <div>
+          <h2>Nastavenie nového hesla</h2>
+          <p id="passwordDialogText">Pri prvom prihlásení si nastavte vlastné heslo.</p>
+        </div>
+      </div>
+      <form id="passwordForm" class="form-grid">
+        <label class="wide">
+          Nové heslo
+          <input id="newPassword" type="password" minlength="8" autocomplete="new-password" required />
+        </label>
+        <label class="wide">
+          Zopakujte nové heslo
+          <input id="confirmPassword" type="password" minlength="8" autocomplete="new-password" required />
+        </label>
+        <div class="actions wide">
+          <button class="primary" type="submit">Uložiť nové heslo</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="adminResetDialog" class="csv-dialog password-dialog">
+      <div class="dialog-head">
+        <div>
+          <h2>Reset hesla</h2>
+          <p id="adminResetText"></p>
+        </div>
+        <button id="closeAdminReset" type="button" aria-label="Zavrieť">×</button>
+      </div>
+      <form id="adminResetForm" class="form-grid">
+        <input id="resetUserId" type="hidden" />
+        <label class="wide">
+          Nové dočasné heslo
+          <input id="temporaryPassword" type="password" minlength="8" required />
+        </label>
+        <div class="actions wide">
+          <button class="primary" type="submit">Resetovať heslo</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
