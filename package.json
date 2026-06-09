@@ -1,0 +1,13 @@
+{
+  "name": "nadcasova-praca-ucitelov",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Online evidencia nadcasovej prace ucitelov",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
