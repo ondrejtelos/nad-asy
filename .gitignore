@@ -1,4 +1,5 @@
 .env
+.backup-key
 data.json
 node_modules/
 npm-debug.log*

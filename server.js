@@ -10,6 +10,7 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const BACKUP_SECRET = process.env.BACKUP_SECRET || "";
 const ONLINE_MODE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY);
 const HOSTED_MODE = Boolean(
   process.env.RENDER ||
@@ -43,6 +44,13 @@ function verifyPassword(password, stored) {
   const actual = crypto.scryptSync(String(password), salt, 64);
   const expectedBuffer = Buffer.from(expected, "hex");
   return actual.length === expectedBuffer.length && crypto.timingSafeEqual(actual, expectedBuffer);
+}
+
+function secureEqual(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""));
+  const rightBuffer = Buffer.from(String(right || ""));
+  return leftBuffer.length === rightBuffer.length &&
+    crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 function defaultState() {
@@ -322,6 +330,33 @@ async function loadStateForUser(user) {
   return { settings: state.settings, entries, usages };
 }
 
+async function loadBackup() {
+  if (ONLINE_MODE) {
+    const usersResult = await supabaseFetch("/auth/v1/admin/users?page=1&per_page=1000", { method: "GET" });
+    const state = await loadOnlineState({ role: "admin" });
+    return {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      source: "supabase",
+      settings: state.settings,
+      users: usersResult.users.map(publicUser),
+      entries: state.entries,
+      usages: state.usages
+    };
+  }
+
+  const state = readState();
+  return {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    source: "local",
+    settings: state.settings,
+    users: state.users.map(publicUser),
+    entries: state.entries,
+    usages: state.usages
+  };
+}
+
 async function saveOnlineEntry(entry, id) {
   const body = {
     ...(id ? {} : { id: entry.id }),
@@ -420,6 +455,13 @@ async function handleApi(req, res) {
         code: "DATABASE_NOT_CONFIGURED",
         missingVariables: MISSING_DATABASE_VARIABLES
       });
+    }
+    if (req.method === "GET" && url.pathname === "/api/backup") {
+      const providedSecret = req.headers["x-backup-key"];
+      if (!BACKUP_SECRET || !secureEqual(providedSecret, BACKUP_SECRET)) {
+        return sendJson(res, 401, { error: "Neplatný kľúč zálohy." });
+      }
+      return sendJson(res, 200, await loadBackup());
     }
     if (req.method === "POST" && url.pathname === "/api/login") {
       return handleLogin(req, res);
