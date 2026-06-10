@@ -156,11 +156,13 @@ function cleanText(value, max = 160) {
 
 function publicUser(user) {
   const appMetadata = user.app_metadata || {};
+  const schoolRoles = ["teacher", "thp", "educator", "special_pedagogue", "assistant", "admin"];
+  const role = appMetadata.role || (schoolRoles.includes(user.role) ? user.role : "teacher");
   return {
     id: user.id,
     email: user.email,
     name: user.name || user.user_metadata?.full_name || user.email,
-    role: user.role || appMetadata.role || "teacher",
+    role,
     mustChangePassword: Boolean(user.mustChangePassword ?? appMetadata.must_change_password),
     passwordResetRequested: Boolean(user.passwordResetRequested ?? appMetadata.password_reset_requested)
   };
