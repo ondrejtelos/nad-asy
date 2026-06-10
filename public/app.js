@@ -55,6 +55,8 @@ const els = {
   editUntilDay: $("#editUntilDay"),
   saveSettings: $("#saveSettings"),
   newMonth: $("#newMonth"),
+  restoreBackup: $("#restoreBackup"),
+  restoreBackupFile: $("#restoreBackupFile"),
   userForm: $("#userForm"),
   newUserName: $("#newUserName"),
   newUserEmail: $("#newUserEmail"),
@@ -546,6 +548,63 @@ els.newMonth.addEventListener("click", async () => {
     await load();
   } catch (error) {
     toast(error.message);
+  }
+});
+
+els.restoreBackup.addEventListener("click", () => {
+  els.restoreBackupFile.value = "";
+  els.restoreBackupFile.click();
+});
+
+els.restoreBackupFile.addEventListener("change", async () => {
+  const file = els.restoreBackupFile.files?.[0];
+  if (!file) return;
+  if (file.size > 10_000_000) {
+    toast("Záloha je príliš veľká.");
+    return;
+  }
+
+  let backup;
+  try {
+    backup = JSON.parse(await file.text());
+  } catch {
+    toast("Vybraný súbor nie je platný JSON.");
+    return;
+  }
+  if (backup?.version !== 1 ||
+      !Array.isArray(backup.users) ||
+      !Array.isArray(backup.entries) ||
+      !Array.isArray(backup.usages)) {
+    toast("Vybraný súbor nie je platná záloha aplikácie.");
+    return;
+  }
+
+  const message =
+    `Obnoviť a zlúčiť zálohu z ${backup.generatedAt || "neznámeho dátumu"}?\n\n` +
+    `Záloha obsahuje ${backup.users.length} účtov, ${backup.entries.length} záznamov ` +
+    `a ${backup.usages.length} čerpaní.\n\n` +
+    "Súčasné účty ani údaje sa nevymažú. Aktívny mesiac zostane nezmenený.";
+  if (!confirm(message)) return;
+
+  els.restoreBackup.disabled = true;
+  try {
+    const result = await api("/api/admin/restore", {
+      method: "POST",
+      body: JSON.stringify({ backup })
+    });
+    const skipped = result.skippedAccounts?.length
+      ? ` Preskočené chýbajúce účty: ${result.skippedAccounts.length}.`
+      : "";
+    toast(
+      `Obnovené: ${result.restoredEntries} záznamov a ` +
+      `${result.restoredUsages} čerpaní.${skipped}`
+    );
+    await load();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    els.restoreBackup.disabled = false;
+    els.restoreBackupFile.value = "";
   }
 });
 

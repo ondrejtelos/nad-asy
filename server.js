@@ -143,7 +143,7 @@ function readBody(req) {
     let body = "";
     req.on("data", chunk => {
       body += chunk;
-      if (body.length > 1_000_000) {
+      if (body.length > 10_000_000) {
         req.destroy();
         reject(new Error("Požiadavka je príliš veľká."));
       }
@@ -357,6 +357,141 @@ async function loadBackup() {
   };
 }
 
+function validateBackup(backup) {
+  if (!backup || backup.version !== 1 ||
+      !Array.isArray(backup.users) ||
+      !Array.isArray(backup.entries) ||
+      !Array.isArray(backup.usages)) {
+    throw new Error("Súbor nie je platná záloha aplikácie Nadčasy.");
+  }
+}
+
+async function restoreBackupMerge(backup) {
+  validateBackup(backup);
+
+  if (ONLINE_MODE) {
+    const currentUsersResult = await supabaseFetch(
+      "/auth/v1/admin/users?page=1&per_page=1000",
+      { method: "GET" }
+    );
+    const currentUsersByEmail = new Map(
+      currentUsersResult.users.map(user => [String(user.email || "").toLowerCase(), user])
+    );
+    const userIdMap = new Map();
+    const skippedAccounts = [];
+
+    for (const backupUser of backup.users) {
+      const currentUser = currentUsersByEmail.get(String(backupUser.email || "").toLowerCase());
+      if (currentUser) {
+        userIdMap.set(backupUser.id, currentUser.id);
+      } else if (backupUser.role !== "admin") {
+        skippedAccounts.push(backupUser.email || backupUser.name || backupUser.id);
+      }
+    }
+
+    const entries = backup.entries.flatMap(entry => {
+      const userId = userIdMap.get(entry.userId);
+      if (!userId || !entry.id || !entry.date || !entry.month || Number(entry.hours) <= 0) return [];
+      const currentUser = currentUsersResult.users.find(user => user.id === userId);
+      return [{
+        id: entry.id,
+        user_id: userId,
+        teacher_name: currentUser?.user_metadata?.full_name || entry.teacher || currentUser?.email,
+        work_date: entry.date,
+        hours: Number(entry.hours),
+        reason: cleanText(entry.reason, 160),
+        note: cleanText(entry.note, 500),
+        month: entry.month,
+        created_at: entry.createdAt || new Date().toISOString(),
+        updated_at: entry.updatedAt || new Date().toISOString()
+      }];
+    });
+
+    const usages = backup.usages.flatMap(usage => {
+      const userId = userIdMap.get(usage.userId);
+      if (!userId || !usage.month || Number(usage.hours) < 0) return [];
+      return [{
+        id: usage.id || crypto.randomUUID(),
+        user_id: userId,
+        month: usage.month,
+        hours: Number(usage.hours),
+        note: cleanText(usage.note, 500),
+        updated_at: usage.updatedAt || new Date().toISOString()
+      }];
+    });
+
+    if (entries.length) {
+      await supabaseFetch("/rest/v1/overtime_entries?on_conflict=id", {
+        method: "POST",
+        prefer: "resolution=merge-duplicates,return=minimal",
+        body: JSON.stringify(entries)
+      });
+    }
+    if (usages.length) {
+      await supabaseFetch("/rest/v1/overtime_usage?on_conflict=user_id,month", {
+        method: "POST",
+        prefer: "resolution=merge-duplicates,return=minimal",
+        body: JSON.stringify(usages)
+      });
+    }
+
+    return {
+      mode: "merge",
+      restoredEntries: entries.length,
+      restoredUsages: usages.length,
+      matchedAccounts: userIdMap.size,
+      skippedAccounts
+    };
+  }
+
+  const state = readState();
+  const currentUsersByEmail = new Map(
+    state.users.map(user => [String(user.email || "").toLowerCase(), user])
+  );
+  const userIdMap = new Map();
+  const skippedAccounts = [];
+  for (const backupUser of backup.users) {
+    const currentUser = currentUsersByEmail.get(String(backupUser.email || "").toLowerCase());
+    if (currentUser) userIdMap.set(backupUser.id, currentUser.id);
+    else if (backupUser.role !== "admin") {
+      skippedAccounts.push(backupUser.email || backupUser.name || backupUser.id);
+    }
+  }
+
+  let restoredEntries = 0;
+  for (const entry of backup.entries) {
+    const userId = userIdMap.get(entry.userId);
+    if (!userId || !entry.id) continue;
+    const currentUser = state.users.find(user => user.id === userId);
+    const restored = { ...entry, userId, teacher: currentUser?.name || entry.teacher };
+    const index = state.entries.findIndex(item => item.id === restored.id);
+    if (index >= 0) state.entries[index] = restored;
+    else state.entries.push(restored);
+    restoredEntries += 1;
+  }
+
+  let restoredUsages = 0;
+  for (const usage of backup.usages) {
+    const userId = userIdMap.get(usage.userId);
+    if (!userId || !usage.month) continue;
+    const restored = { ...usage, userId };
+    const index = state.usages.findIndex(
+      item => item.userId === userId && item.month === restored.month
+    );
+    if (index >= 0) state.usages[index] = restored;
+    else state.usages.push(restored);
+    restoredUsages += 1;
+  }
+  writeState(state);
+  return {
+    mode: "merge",
+    restoredEntries,
+    restoredUsages,
+    matchedAccounts: userIdMap.size,
+    skippedAccounts
+  };
+}
+
 async function saveOnlineEntry(entry, id) {
   const body = {
     ...(id ? {} : { id: entry.id }),
@@ -512,6 +647,12 @@ async function handleApi(req, res) {
           activeMonth: state.settings.activeMonth
         }
       });
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/admin/restore") {
+      if (!requireAdmin(user, res)) return;
+      const body = await readBody(req);
+      return sendJson(res, 200, await restoreBackupMerge(body.backup || body));
     }
 
     if (req.method === "POST" && url.pathname === "/api/logout") {
