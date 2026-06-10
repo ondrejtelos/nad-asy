@@ -374,9 +374,12 @@ async function handleLogin(req, res) {
   if (!email || !password) return sendJson(res, 400, { error: "Zadajte e-mail aj heslo." });
 
   if (ONLINE_MODE) {
+    const loginEmail = email === "adminzskysak"
+      ? "adminzskysak@skola.local"
+      : email;
     const result = await supabaseFetch(
       "/auth/v1/token?grant_type=password",
-      { method: "POST", body: JSON.stringify({ email, password }) },
+      { method: "POST", body: JSON.stringify({ email: loginEmail, password }) },
       SUPABASE_ANON_KEY
     );
     return sendJson(res, 200, {
