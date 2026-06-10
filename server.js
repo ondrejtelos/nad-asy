@@ -11,6 +11,20 @@ const SUPABASE_URL = String(process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ONLINE_MODE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_SERVICE_ROLE_KEY);
+const HOSTED_MODE = Boolean(
+  process.env.RENDER ||
+  process.env.VERCEL ||
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.NODE_ENV === "production"
+);
+const ALLOW_LOCAL_DATA = process.env.ALLOW_LOCAL_DATA === "true" || !HOSTED_MODE;
+const DATABASE_REQUIRED = HOSTED_MODE && !ALLOW_LOCAL_DATA;
+const DATABASE_READY = ONLINE_MODE || !DATABASE_REQUIRED;
+const MISSING_DATABASE_VARIABLES = [
+  ["SUPABASE_URL", SUPABASE_URL],
+  ["SUPABASE_ANON_KEY", SUPABASE_ANON_KEY],
+  ["SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY]
+].filter(([, value]) => !value).map(([name]) => name);
 const sessions = new Map();
 
 function currentMonth() {
@@ -100,6 +114,9 @@ function readState() {
 }
 
 function writeState(state) {
+  if (!ALLOW_LOCAL_DATA) {
+    throw new Error("Lokálne súborové úložisko je na verejnom serveri zakázané.");
+  }
   fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2), "utf8");
 }
 
@@ -384,7 +401,20 @@ async function handleApi(req, res) {
 
   try {
     if (req.method === "GET" && url.pathname === "/api/config") {
-      return sendJson(res, 200, { online: ONLINE_MODE });
+      return sendJson(res, 200, {
+        online: ONLINE_MODE,
+        hosted: HOSTED_MODE,
+        databaseReady: DATABASE_READY,
+        storage: ONLINE_MODE ? "supabase" : (ALLOW_LOCAL_DATA ? "local" : "unavailable"),
+        missingVariables: MISSING_DATABASE_VARIABLES
+      });
+    }
+    if (!DATABASE_READY) {
+      return sendJson(res, 503, {
+        error: "Online databáza nie je nastavená. Doplňte Supabase premenné na hostingu.",
+        code: "DATABASE_NOT_CONFIGURED",
+        missingVariables: MISSING_DATABASE_VARIABLES
+      });
     }
     if (req.method === "POST" && url.pathname === "/api/login") {
       return handleLogin(req, res);

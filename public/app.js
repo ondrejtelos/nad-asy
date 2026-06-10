@@ -15,6 +15,7 @@ const els = {
   loginEmail: $("#loginEmail"),
   loginPassword: $("#loginPassword"),
   requestPasswordReset: $("#requestPasswordReset"),
+  deploymentError: $("#deploymentError"),
   localHint: $("#localHint"),
   logoutButton: $("#logoutButton"),
   currentUserName: $("#currentUserName"),
@@ -709,6 +710,17 @@ async function start() {
   try {
     const config = await api("/api/config");
     els.localHint.hidden = config.online;
+    if (!config.databaseReady) {
+      const missing = (config.missingVariables || []).join(", ");
+      els.deploymentError.textContent =
+        `Online databáza nie je nastavená. Na hostingu doplňte: ${missing}.`;
+      els.deploymentError.hidden = false;
+      els.loginForm.querySelector('button[type="submit"]').disabled = true;
+      els.requestPasswordReset.disabled = true;
+      showLogin();
+      return;
+    }
+    els.deploymentError.hidden = true;
     if (state.token) {
       await load();
     } else {

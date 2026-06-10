@@ -34,6 +34,10 @@ Ucitel:        ucitel@skola.local / ucitel123
 
 Lokalny rezim uklada data do `data.json`. Je urceny iba na skusanie.
 
+Na Renderi, Verceli alebo Railway sa lokalny rezim automaticky zablokuje.
+Ak chybaju Supabase premenne, aplikacia zobrazi jasnu chybu a nedovoli
+zapisovat do docasneho `data.json`.
+
 ## Online nasadenie
 
 ### 1. Supabase

@@ -67,6 +67,17 @@ select {
   line-height: 1.6;
 }
 
+.deployment-error {
+  padding: 12px;
+  border: 1px solid #e2b4aa;
+  border-radius: 6px;
+  background: #fff0ed;
+  color: #8a3325;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .topbar {
   display: flex;
   align-items: center;
