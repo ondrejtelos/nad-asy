@@ -76,6 +76,13 @@ const els = {
   resetUserId: $("#resetUserId"),
   temporaryPassword: $("#temporaryPassword"),
   closeAdminReset: $("#closeAdminReset"),
+  editUserDialog: $("#editUserDialog"),
+  editUserForm: $("#editUserForm"),
+  editUserId: $("#editUserId"),
+  editUserName: $("#editUserName"),
+  editUserEmail: $("#editUserEmail"),
+  editUserRole: $("#editUserRole"),
+  closeEditUser: $("#closeEditUser"),
   toast: $("#toast")
 };
 
@@ -178,6 +185,9 @@ function canEdit(entry) {
 function roleLabel(role) {
   if (role === "admin") return "Administrátor";
   if (role === "thp") return "THP zamestnanec";
+  if (role === "educator") return "Vychovávateľka";
+  if (role === "special_pedagogue") return "Špeciálny pedagóg";
+  if (role === "assistant") return "Asistentka";
   return "Učiteľ";
 }
 
@@ -205,7 +215,7 @@ function render() {
   els.currentUserRole.textContent = roleLabel(state.user.role);
   els.teacher.value = state.user.name;
   els.schoolEyebrow.textContent = settings.schoolName ||
-    "Spojená škola škola, Ružínska ulica 210/22, Kysak";
+    "Spojená škola, Ružínska ulica 210/22, Kysak";
   els.adminPanel.hidden = !isAdmin;
   els.teacherFilterLabel.hidden = !isAdmin;
   els.recordsTitle.textContent = isAdmin
@@ -289,7 +299,11 @@ async function loadUsers() {
         <div class="user-row-actions">
           <span class="role-badge">${roleLabel(user.role)}</span>
           ${user.role !== "admin"
-            ? `<button type="button" data-reset-user="${escapeHtml(user.id)}">Resetovať heslo</button>`
+            ? `
+              <button type="button" data-edit-user="${escapeHtml(user.id)}">Upraviť účet</button>
+              <button type="button" data-reset-user="${escapeHtml(user.id)}">Resetovať heslo</button>
+              <button class="danger" type="button" data-delete-user="${escapeHtml(user.id)}">Zmazať účet</button>
+            `
             : ""}
         </div>
       </div>`).join("")}
@@ -555,14 +569,59 @@ els.userForm.addEventListener("submit", async event => {
 });
 
 els.usersList.addEventListener("click", event => {
-  const userId = event.target.dataset.resetUser;
+  const editId = event.target.dataset.editUser;
+  const resetId = event.target.dataset.resetUser;
+  const deleteId = event.target.dataset.deleteUser;
+  const userId = editId || resetId || deleteId;
   if (!userId) return;
   const user = state.users.find(item => item.id === userId);
   if (!user) return;
+  if (editId) {
+    els.editUserId.value = user.id;
+    els.editUserName.value = user.name;
+    els.editUserEmail.value = user.email;
+    els.editUserRole.value = user.role;
+    els.editUserDialog.showModal();
+    return;
+  }
+  if (deleteId) {
+    if (!confirm(`Naozaj zmazať účet ${user.name}? Zmažú sa aj všetky jeho záznamy a čerpanie.`)) {
+      return;
+    }
+    api(`/api/users/${user.id}`, { method: "DELETE" })
+      .then(async () => {
+        if (state.selectedTeacherId === user.id) state.selectedTeacherId = "";
+        toast("Účet bol zmazaný.");
+        await load();
+      })
+      .catch(error => toast(error.message));
+    return;
+  }
   els.resetUserId.value = user.id;
   els.adminResetText.textContent = `Nastavujete dočasné heslo pre: ${user.name}`;
   els.temporaryPassword.value = "";
   els.adminResetDialog.showModal();
+});
+
+els.closeEditUser.addEventListener("click", () => els.editUserDialog.close());
+
+els.editUserForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  try {
+    await api(`/api/users/${els.editUserId.value}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: els.editUserName.value,
+        email: els.editUserEmail.value,
+        role: els.editUserRole.value
+      })
+    });
+    els.editUserDialog.close();
+    toast("Účet bol upravený.");
+    await load();
+  } catch (error) {
+    toast(error.message);
+  }
 });
 
 els.closeAdminReset.addEventListener("click", () => els.adminResetDialog.close());

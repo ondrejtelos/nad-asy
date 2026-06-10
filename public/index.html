@@ -141,6 +141,9 @@
               <select id="newUserRole">
                 <option value="teacher">Učiteľ</option>
                 <option value="thp">THP zamestnanec</option>
+                <option value="educator">Vychovávateľka</option>
+                <option value="special_pedagogue">Špeciálny pedagóg</option>
+                <option value="assistant">Asistentka</option>
                 <option value="admin">Administrátor</option>
               </select>
             </label>
@@ -269,6 +272,40 @@
         </label>
         <div class="actions wide">
           <button class="primary" type="submit">Resetovať heslo</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="editUserDialog" class="csv-dialog password-dialog">
+      <div class="dialog-head">
+        <div>
+          <h2>Upraviť účet</h2>
+          <p>Zmeňte meno, e-mailovú adresu alebo kategóriu zamestnanca.</p>
+        </div>
+        <button id="closeEditUser" type="button" aria-label="Zavrieť">×</button>
+      </div>
+      <form id="editUserForm" class="form-grid">
+        <input id="editUserId" type="hidden" />
+        <label>
+          Meno
+          <input id="editUserName" required />
+        </label>
+        <label>
+          E-mail
+          <input id="editUserEmail" type="email" required />
+        </label>
+        <label class="wide">
+          Kategória
+          <select id="editUserRole">
+            <option value="teacher">Učiteľ</option>
+            <option value="thp">THP zamestnanec</option>
+            <option value="educator">Vychovávateľka</option>
+            <option value="special_pedagogue">Špeciálny pedagóg</option>
+            <option value="assistant">Asistentka</option>
+          </select>
+        </label>
+        <div class="actions wide">
+          <button class="primary" type="submit">Uložiť účet</button>
         </div>
       </form>
     </dialog>

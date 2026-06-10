@@ -1,6 +1,6 @@
 create table if not exists public.app_settings (
   id integer primary key default 1 check (id = 1),
-  school_name text not null default 'Spojená škola škola, Ružínska ulica 210/22, Kysak',
+  school_name text not null default 'Spojená škola, Ružínska ulica 210/22, Kysak',
   active_month text not null,
   edit_from_day integer not null default 5 check (edit_from_day between 1 and 31),
   edit_until_day integer not null default 29 check (edit_until_day between 1 and 31),
@@ -16,7 +16,7 @@ insert into public.app_settings (
 )
 values (
   1,
-  'Spojená škola škola, Ružínska ulica 210/22, Kysak',
+  'Spojená škola, Ružínska ulica 210/22, Kysak',
   to_char(current_date, 'YYYY-MM'),
   5,
   29

@@ -281,7 +281,8 @@ h3 {
 .user-row-actions {
   display: flex !important;
   align-items: center;
-  grid-auto-flow: column;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px !important;
 }
 

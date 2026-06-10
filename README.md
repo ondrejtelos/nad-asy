@@ -5,7 +5,9 @@ Webova aplikacia na evidenciu nadcasovej prace s prihlasovanim.
 ## Co aplikacia robi
 
 - Kazdy ucitel ma vlastny e-mail a heslo.
-- Podporovane typy uctov su Ucitel, THP zamestnanec a Administrator.
+- Podporovane typy uctov su Ucitel, THP zamestnanec, Vychovavatelka,
+  Specialny pedagog, Asistentka a Administrator.
+- Administrator moze upravit meno, e-mail a kategoriu zamestnanca alebo ucet zmazat.
 - Ucitel vidi a upravuje iba svoje zaznamy.
 - Administrator vidi a upravuje vsetky zaznamy.
 - Administrator pri vybranom ucitelovi vidi nadcasy spolu, cerpanie a zostavajuci zostatok.

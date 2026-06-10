@@ -37,7 +37,7 @@ function defaultState() {
       activeMonth: currentMonth(),
       editFromDay: 5,
       editUntilDay: 29,
-      schoolName: "Spojená škola škola, Ružínska ulica 210/22, Kysak"
+      schoolName: "Spojená škola, Ružínska ulica 210/22, Kysak"
     },
     users: [
       {
@@ -490,7 +490,14 @@ async function handleApi(req, res) {
       const email = cleanText(body.email, 200).toLowerCase();
       const name = cleanText(body.name, 100);
       const password = String(body.password || "");
-      const allowedRoles = new Set(["teacher", "thp", "admin"]);
+      const allowedRoles = new Set([
+        "teacher",
+        "thp",
+        "educator",
+        "special_pedagogue",
+        "assistant",
+        "admin"
+      ]);
       const role = allowedRoles.has(body.role) ? body.role : "teacher";
       if (!email.includes("@") || !name || password.length < 8) {
         return sendJson(res, 400, { error: "Zadajte meno, platný e-mail a heslo s aspoň 8 znakmi." });
@@ -530,6 +537,91 @@ async function handleApi(req, res) {
       state.users.push(created);
       writeState(state);
       return sendJson(res, 201, publicUser(created));
+    }
+
+    const userMatch = url.pathname.match(/^\/api\/users\/([^/]+)$/);
+    if (userMatch && req.method === "PUT") {
+      if (!requireAdmin(user, res)) return;
+      const targetId = userMatch[1];
+      if (targetId === user.id) {
+        return sendJson(res, 400, { error: "Vlastný administrátorský účet tu nemožno upraviť." });
+      }
+      const body = await readBody(req);
+      const email = cleanText(body.email, 200).toLowerCase();
+      const name = cleanText(body.name, 100);
+      const allowedRoles = new Set([
+        "teacher",
+        "thp",
+        "educator",
+        "special_pedagogue",
+        "assistant"
+      ]);
+      const role = allowedRoles.has(body.role) ? body.role : "teacher";
+      if (!email.includes("@") || !name) {
+        return sendJson(res, 400, { error: "Zadajte meno a platnú e-mailovú adresu." });
+      }
+
+      if (ONLINE_MODE) {
+        const target = await supabaseFetch(`/auth/v1/admin/users/${targetId}`, { method: "GET" });
+        await supabaseFetch(`/auth/v1/admin/users/${targetId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            email,
+            email_confirm: true,
+            user_metadata: {
+              ...(target.user_metadata || {}),
+              full_name: name
+            },
+            app_metadata: {
+              ...(target.app_metadata || {}),
+              role
+            }
+          })
+        });
+        await supabaseFetch(`/rest/v1/overtime_entries?user_id=eq.${targetId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ teacher_name: name })
+        });
+      } else {
+        const local = readState();
+        const target = local.users.find(item => item.id === targetId);
+        if (!target) return sendJson(res, 404, { error: "Používateľ sa nenašiel." });
+        if (local.users.some(item => item.id !== targetId && item.email.toLowerCase() === email)) {
+          return sendJson(res, 409, { error: "Používateľ s týmto e-mailom už existuje." });
+        }
+        target.name = name;
+        target.email = email;
+        target.role = role;
+        for (const entry of local.entries) {
+          if (entry.userId === targetId) entry.teacher = name;
+        }
+        writeState(local);
+      }
+      return sendJson(res, 200, { id: targetId, email, name, role });
+    }
+
+    if (userMatch && req.method === "DELETE") {
+      if (!requireAdmin(user, res)) return;
+      const targetId = userMatch[1];
+      if (targetId === user.id) {
+        return sendJson(res, 400, { error: "Vlastný administrátorský účet nemožno zmazať." });
+      }
+
+      if (ONLINE_MODE) {
+        await supabaseFetch(`/auth/v1/admin/users/${targetId}`, {
+          method: "DELETE",
+          prefer: "return=minimal"
+        });
+      } else {
+        const local = readState();
+        const target = local.users.find(item => item.id === targetId);
+        if (!target) return sendJson(res, 404, { error: "Používateľ sa nenašiel." });
+        local.users = local.users.filter(item => item.id !== targetId);
+        local.entries = local.entries.filter(item => item.userId !== targetId);
+        local.usages = local.usages.filter(item => item.userId !== targetId);
+        writeState(local);
+      }
+      return sendJson(res, 200, { ok: true });
     }
 
     const userPasswordMatch = url.pathname.match(/^\/api\/users\/([^/]+)\/password$/);
@@ -690,7 +782,7 @@ async function handleApi(req, res) {
       }
       const settings = {
         schoolName: cleanText(body.schoolName, 160) ||
-          "Spojená škola škola, Ružínska ulica 210/22, Kysak",
+          "Spojená škola, Ružínska ulica 210/22, Kysak",
         activeMonth: /^\d{4}-\d{2}$/.test(body.activeMonth) ? body.activeMonth : currentMonth(),
         editFromDay,
         editUntilDay
